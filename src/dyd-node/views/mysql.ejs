@@ -1,0 +1,199 @@
+
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <!-- import CSS -->
+    <link rel="stylesheet" href="/stylesheets/element.css">
+</head>
+<body id="body">
+<div id="app">
+    <el-button @click="createAll()"  type="primary">全部创建</el-button>
+    <el-button @click="deleteAll()" type="danger">全部删除</el-button>
+    <el-button @click="clearAll()" type="warning">全部清空</el-button>
+    <el-table
+            v-if="files!==[]"
+            :data="files"
+            style="width: 100%">
+        <el-table-column
+                label="#"
+                type="index"
+                width="180">
+        </el-table-column>
+        <el-table-column
+                prop="tableName"
+                label="表名"
+                width="180">
+            <template slot-scope="scope">
+                {{'tbl_'+scope.row.tableName.substring(0,scope.row.tableName.length-3)}}
+            </template>
+        </el-table-column>
+        <el-table-column
+                prop="name"
+                label="行数(空代表还未创建)"
+                width="180">
+            <template slot-scope="scope">
+                {{scope.row.rows}}
+                <!--<span v-if="!scope.row.rows">-->
+                    <!--{{getRow(scope.row.tableName,scope.$index)}}-->
+                <!--</span>-->
+            </template>
+        </el-table-column>
+        <el-table-column
+                label="操作">
+            <template slot-scope="scope">
+                <el-button
+                        @click="createTable(scope.row.create,scope.row.tableName)" size="mini" plain type="primary">
+                    创建
+                </el-button>
+                <el-button @click="deleteTable(scope.row.tableName)" size="mini" plain type="danger">
+                    删除
+                </el-button>
+                <el-button @click="clearTable(scope.row.tableName)" size="mini" plain type="warning">
+                    清空
+                </el-button>
+                <el-button @click="()=>{drawer = true;tableInfo=scope.row}" size="mini" plain type="success">
+                    详情
+                </el-button>
+            </template>
+        </el-table-column>
+    </el-table>
+
+    <el-drawer
+            v-if="tableInfo!==null"
+            :visible.sync="drawer"
+            :direction="direction">
+        <p style="margin: 30px">
+            {{'tbl_'+tableInfo.tableName}}
+        </p>
+        <div v-for="(item,index) in tableInfo.create" style="margin-left: 10px">
+            <el-row>
+                <el-col :span="7">
+                    {{item[0]}}
+                </el-col>
+                <el-col :span="17">
+                    : {{item[1]}}
+                </el-col>
+            </el-row>
+           
+        </div>
+
+    </el-drawer>
+</div>
+<!-- import Vue before Element -->
+<script src="/javascripts/vue.js"></script>
+<!-- import JavaScript -->
+<script src="/javascripts/element.js"></script>
+<script>
+    // import userTable from '../sql/table/user.js'
+
+    //let userTable = require('../sql/table/user.js')
+    let vl=new Vue({
+        el: '#app',
+        data: function() {
+            return {
+                files: [],
+                drawer: false,
+                direction: 'ltr',
+                tableInfo:null
+            }
+        },
+        created(){
+           this.ajax_get('getFiles',res=>{
+               vl.$data.files=res
+               this.rows()
+           })
+
+        },
+        methods:{
+            ajax_get(url,call){
+                var ajax=new XMLHttpRequest();
+                ajax.open('get',url);
+                ajax.send();
+                ajax.onreadystatechange=function(){
+                    if(ajax.readyState===4&&ajax.status===200){
+                        call(JSON.parse(ajax.responseText))
+                    }
+                }
+            },
+            createTable(create,tableName){
+                console.log(create)
+                let sql=`CREATE TABLE tbl_${tableName.substring(0,tableName.length-3)} (`
+                create.forEach((val,index)=>{
+                    sql+=val[0] + ' ' + val[1]+',';
+                })
+                sql=sql.substring(0,sql.length-1)+")";
+                console.log(sql)
+                this.ajax_get('operation?sql='+sql.toString(),res=>{
+                    console.log(res)
+                    if(res){
+                        this.$message('创建'+tableName.substring(0,tableName.length-3))
+                    }
+
+                })
+            },
+            getRow(tableName,index){
+                let sql="select count(*) as countNum from tbl_"+tableName.substring(0,tableName.length-3)
+                this.ajax_get('operation?sql='+sql.toString(),res=>{
+                    if(res){
+                        let table=vl.$data.files[index]
+                        table.rows=res[0].countNum||0
+                        //强制刷新表格
+                        vl.$data.files.splice(index,1)
+                        vl.$data.files.splice(index,0,table)
+                    }
+
+                })
+            },
+
+            deleteTable(tableName){
+                let sql=`DROP TABLE tbl_`+tableName.substring(0,tableName.length-3)
+                this.ajax_get('operation?sql='+sql.toString(),res=>{
+                    console.log(res)
+                    if(res) {
+                        this.$message('删除' + tableName.substring(0, tableName.length - 3))
+                    }
+                })
+            },
+            clearTable(tableName){
+                let sql=`delete from tbl_`+tableName.substring(0,tableName.length-3)
+                this.ajax_get('operation?sql='+sql.toString(),res=>{
+                    console.log(res)
+                    if(res) {
+                        this.$message('清空' + tableName.substring(0, tableName.length - 3))
+                    }
+                })
+            },
+
+            forArray(call){
+                this.files.forEach((val,index)=>{
+                    call(val)
+                })
+            },
+            createAll(){
+                this.forArray(val=>{
+                    this.createTable(val.create,val.tableName)
+                })
+            },
+            clearAll(){
+                this.forArray(val=>{
+                    this.clearTable(val.tableName)
+                })
+            },
+            deleteAll(){
+                this.forArray(val=>{
+                    this.deleteTable(val.tableName)
+                })
+            },
+            rows(){
+                this.files.forEach((val,index)=>{
+                    this.getRow(val.tableName,index)
+                })
+            },
+
+        }
+    })
+</script>
+</body>
+</html>
